@@ -907,6 +907,19 @@
             document.getElementById('report-upload').addEventListener('change', handleFileUpload);
         });
 
+        // Helper function to flatten nested JSON objects
+        function flattenJSON(obj, prefix = '') {
+            return Object.keys(obj).reduce((acc, k) => {
+                const pre = prefix.length ? prefix + '.' : '';
+                if (typeof obj[k] === 'object' && obj[k] !== null && !Array.isArray(obj[k])) {
+                    Object.assign(acc, flattenJSON(obj[k], pre + k));
+                } else {
+                    acc[pre + k] = obj[k];
+                }
+                return acc;
+            }, {});
+        }
+
         async function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -919,14 +932,70 @@
                     try {
                         const parsedData = JSON.parse(evt.target.result);
                         
-                        Object.keys(clientData).forEach(key => {
-                            if (parsedData[key] !== undefined) {
-                                clientData[key] = parsedData[key];
+                        // 1. Flatten the JSON in case data is nested inside objects
+                        const flatData = flattenJSON(parsedData);
+                        
+                        // 2. Create a normalized version of keys (lowercase, no symbols) for fuzzy matching
+                        const normalizedData = {};
+                        for (const key in flatData) {
+                            const cleanKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                            normalizedData[cleanKey] = flatData[key];
+                        }
+
+                        // 3. Define flexible aliases for our form fields
+                        const keyMap = {
+                            clientName: ['clientname', 'name', 'contactname', 'firstname', 'prospect'],
+                            companyName: ['companyname', 'company', 'businessname', 'business', 'account'],
+                            industry: ['industry', 'niche', 'vertical', 'category', 'type'],
+                            location: ['location', 'city', 'market', 'region', 'address'],
+                            goal: ['goal', 'objective', 'target'],
+                            win1: ['win1', 'strength1', 'goodnews1'],
+                            win2: ['win2', 'strength2', 'goodnews2'],
+                            listingAccuracy: ['listingaccuracy', 'accuracy', 'score', 'health', 'listingscore', 'listing'],
+                            clientReviews: ['clientreviews', 'reviewcount', 'reviews', 'totalreviews'],
+                            clientRating: ['clientrating', 'rating', 'averagerating', 'stars'],
+                            leaderReviews: ['leaderreviews', 'competitorreviews', 'topreviews', 'maxreviews'],
+                            reviewPace: ['reviewpace', 'reviewspermonth', 'velocity', 'pace'],
+                            clientKeywords: ['clientkeywords', 'keywords', 'totalkeywords', 'organickeywords'],
+                            clientTraffic: ['clienttraffic', 'traffic', 'organictraffic', 'visits'],
+                            competitorTraffic: ['competitortraffic', 'topcompetitortraffic', 'leadertraffic'],
+                            targetSearch: ['targetsearch', 'corekeywords', 'targetkeywords', 'searchterms'],
+                            adsStatus: ['adsstatus', 'ads', 'adwords', 'paidsearch', 'paid'],
+                            adsOpportunity: ['adsopportunity', 'opportunity', 'potential', 'adpotential'],
+                            socialCadence: ['socialcadence', 'social', 'posts', 'facebook', 'instagram'],
+                            webSpeed: ['webspeed', 'speed', 'lcp', 'pagespeed', 'loadtime'],
+                            dealValue: ['dealvalue', 'value', 'roi', 'customerltv', 'ltv']
+                        };
+
+                        let updatedCount = 0;
+
+                        // 4. Map the data intelligently
+                        Object.keys(clientData).forEach(modelKey => {
+                            // Try exact match first
+                            if (parsedData[modelKey] !== undefined) {
+                                clientData[modelKey] = parsedData[modelKey];
+                                updatedCount++;
+                            } else {
+                                // Try fuzzy match
+                                const aliases = keyMap[modelKey] || [modelKey.toLowerCase()];
+                                for (const alias of aliases) {
+                                    if (normalizedData[alias] !== undefined) {
+                                        clientData[modelKey] = normalizedData[alias];
+                                        updatedCount++;
+                                        break;
+                                    }
+                                }
                             }
                         });
                         
                         syncPrepFormFromModel();
-                        showToast("JSON report data applied successfully!");
+                        
+                        if (updatedCount > 0) {
+                            showToast(`Success! Auto-filled ${updatedCount} fields from JSON.`);
+                        } else {
+                            showToast("JSON loaded, but keys didn't match. Check file structure.");
+                        }
+                        
                         e.target.value = '';
                     } catch (err) {
                         showToast("Error reading JSON file.");
