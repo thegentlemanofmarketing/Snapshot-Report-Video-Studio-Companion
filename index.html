@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snapshot Report Video Studio Companion</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            gold: '#a98a66',
+                            black: '#000000',
+                            white: '#ffffff',
+                            blue: '#2563eb', // A strong, professional blue
+                            light: '#f8f9fa',
+                            gray: '#f3f4f6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Teleprompter Focus Line Overlay - Light Mode */
+        .prompter-container {
+            position: relative;
+        }
+        .prompter-focus-line {
+            position: absolute;
+            top: 35%;
+            left: 0;
+            right: 0;
+            height: 52px;
+            background: rgba(169, 138, 102, 0.05); /* Very light gold */
+            border-top: 1px dashed rgba(169, 138, 102, 0.4);
+            border-bottom: 1px dashed rgba(169, 138, 102, 0.4);
+            pointer-events: none;
+            z-index: 10;
+        }
+        /* Mirroring for hardware teleprompter glass */
+        .prompter-mirror {
+            transform: scaleX(-1);
+        }
+        /* Dynamic Script Variable Highlights - Brand Gold */
+        .highlight-var {
+            background-color: rgba(169, 138, 102, 0.15);
+            color: #8c704f; /* Slightly darker gold for text contrast */
+            border-bottom: 2px solid #a98a66;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            display: inline-block;
+        }
+        .cue-badge {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 3px 9px;
+            border-radius: 9999px;
+            margin-bottom: 8px;
+        }
+        /* Custom Scrollbars - Light Mode */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a98a66; /* Hover scrollbar is gold */
+        }
+        /* Toast notification positioning */
+        #toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="bg-brand-white text-brand-black font-sans min-h-screen flex flex-col antialiased selection:bg-brand-gold selection:text-white">
+
+    <!-- Top Studio Header Navigation -->
+    <header class="border-b border-gray-200 bg-white/90 backdrop-blur sticky top-0 z-40 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            
+            <!-- Brand & Status -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-brand-gold flex items-center justify-center text-white shadow-lg shadow-brand-gold/20">
+                    <i class="fa-solid fa-video text-base"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-base font-bold text-brand-black leading-none">Snapshot Studio Companion</h1>
+                        <span class="text-[10px] bg-brand-light text-brand-gold border border-brand-gold/30 px-2 py-0.5 rounded-full font-mono">Plug & Play</span>
+                    </div>
+                    <span class="text-xs text-gray-500">7–10 Min Repeatable Audit Walkthrough Engine</span>
+                </div>
+            </div>
+
+            <!-- Global Timer Bar -->
+            <div class="hidden lg:flex items-center space-x-5 bg-gray-50 border border-gray-200 rounded-full px-4 py-1.5 shadow-inner">
+                <div class="flex items-center space-x-2.5">
+                    <div id="recording-dot" class="w-3 h-3 rounded-full bg-gray-400"></div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Recording Timer:</span>
+                    <span id="timer-display" class="font-mono text-base font-bold text-brand-black">00:00</span>
+                    <span class="text-xs text-gray-400">/ 10:00 Max</span>
+                </div>
+
+                <div class="h-4 w-px bg-gray-300"></div>
+
+                <!-- Timer Controls -->
+                <div class="flex items-center space-x-1">
+                    <button id="btn-timer-start" onclick="toggleTimer()" class="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-full transition" title="Start/Pause Timer (Spacebar)">
+                        <i id="timer-icon" class="fa-solid fa-play text-xs"></i>
+                    </button>
+                    <button onclick="resetTimer()" class="p-1.5 text-gray-400 hover:text-brand-black hover:bg-gray-200 rounded-full transition" title="Reset Timer">
+                        <i class="fa-solid fa-rotate-left text-xs"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Profile & Tab Navigation -->
+            <div class="flex items-center space-x-3">
+                
+                <!-- Saved Profiles Quick Dropdown -->
+                <div class="hidden sm:flex items-center bg-gray-50 border border-gray-200 rounded-xl px-2 py-1">
+                    <i class="fa-solid fa-folder-open text-xs text-brand-gold ml-1.5 mr-2"></i>
+                    <select id="saved-profiles-dropdown" onchange="loadSavedProfile(this.value)" class="bg-transparent text-xs text-gray-700 focus:outline-none pr-1 cursor-pointer">
+                        <option value="">Saved Profiles...</option>
+                    </select>
+                    <button onclick="saveCurrentProfilePrompt()" class="ml-1 p-1 text-gray-400 hover:text-brand-gold transition" title="Save current profile">
+                        <i class="fa-solid fa-floppy-disk text-xs"></i>
+                    </button>
+                </div>
+
+                <!-- Tab Mode Switcher Buttons -->
+                <div class="flex items-center space-x-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                    <button id="tab-btn-prep" onclick="switchTab('prep')" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition text-white bg-brand-gold shadow-sm">
+                        <i class="fa-solid fa-pen-to-square mr-1.5"></i>1. Data Prep
+                    </button>
+                    <button id="tab-btn-studio" onclick="switchTab('studio')" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition text-gray-600 hover:text-brand-black hover:bg-gray-200">
+                        <i class="fa-solid fa-display mr-1.5"></i>2. Teleprompter
+                    </button>
+                    <button id="tab-btn-guardrails" onclick="switchTab('guardrails')" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition text-gray-600 hover:text-brand-black hover:bg-gray-200">
+                        <i class="fa-solid fa-shield-halved mr-1.5"></i>3. Cheat Sheet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+
+        <!-- ========================================== -->
+        <!-- TAB 1: PREP DATA FORM                      -->
+        <!-- ========================================== -->
+        <section id="tab-prep" class="space-y-6">
+            
+            <!-- File Upload Bar (New Feature) -->
+            <div class="bg-brand-light border border-gray-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                <div class="flex items-start gap-3">
+                    <div class="mt-1 bg-blue-100 text-brand-blue p-2 rounded-lg">
+                        <i class="fa-solid fa-file-import text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-brand-black">Auto-Fill from JSON Report</h3>
+                        <p class="text-xs text-gray-500 mt-0.5">Upload a structured data file to instantly populate the fields below.</p>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <input type="file" id="report-upload" accept=".json" class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-blue file:text-white hover:file:bg-blue-700 cursor-pointer transition">
+                </div>
+            </div>
+
+            <!-- Banner & Sample Loaders -->
+            <div class="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                <div>
+                    <h2 class="text-lg font-bold text-brand-black flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-brand-gold"></i> Client Audit Data Sheet
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">Plug in the metrics manually or use a preset below. The teleprompter will dynamically format your personalized script.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs text-gray-500 font-medium mr-1">Load Preset Demo:</span>
+                    <button onclick="loadPresetData('auto')" class="px-2.5 py-1.5 text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-200 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-car text-brand-blue"></i> Specialty Auto
+                    </button>
+                    <button onclick="loadPresetData('mortgage')" class="px-2.5 py-1.5 text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-200 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-house-chimney text-brand-gold"></i> Mortgage Broker
+                    </button>
+                    <button onclick="loadPresetData('law')" class="px-2.5 py-1.5 text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-200 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-scale-balanced text-brand-black"></i> Law Firm
+                    </button>
+                    <button onclick="resetPrepForm()" class="px-2.5 py-1.5 text-xs font-semibold bg-white hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-lg border border-gray-200 transition ml-2">
+                        <i class="fa-solid fa-rotate mr-1"></i> Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- Form Grid Cards -->
+            <form id="prep-form" onsubmit="event.preventDefault(); switchTab('studio');" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                <!-- Card 1: Client Overview -->
+                <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <h3 class="font-bold text-xs text-brand-blue uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-building"></i> Client & Business Profile
+                        </h3>
+                        <span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Core Info</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Prospect Name / Owner</label>
+                        <input type="text" id="prep-client-name" value="Mike" placeholder="e.g. Mike Smith" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Business Name</label>
+                        <input type="text" id="prep-company-name" value="EuroTech Auto Works" placeholder="e.g. EuroTech Auto Works" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Primary Industry / Niche</label>
+                        <input type="text" id="prep-industry" value="specialty European auto repair" placeholder="e.g. specialty European auto repair" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Target Market / Location</label>
+                        <input type="text" id="prep-location" value="Miami Metro Area" placeholder="e.g. Miami Metro Area" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Primary Commercial Goal</label>
+                        <input type="text" id="prep-business-goal" value="high-ticket repair jobs and scheduled maintenance" placeholder="e.g. high-ticket repair jobs" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+                </div>
+
+                <!-- Card 2: Good News Wins -->
+                <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <h3 class="font-bold text-xs text-brand-gold uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-circle-check"></i> Good News (Foundational Wins)
+                        </h3>
+                        <span class="text-[10px] bg-orange-50 text-brand-gold px-2 py-0.5 rounded border border-brand-gold/30">Build Trust</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Win #1 Metric (e.g. AI Search / Authority)</label>
+                        <input type="text" id="prep-win-1" value="Appears in 82 AI search responses for specialty auto queries" placeholder="e.g. Strong AI response presence" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Win #2 Metric (e.g. Maps Rank / Baseline)</label>
+                        <input type="text" id="prep-win-2" value="Ranks in the top 3 for 'Porsche repair near me'" placeholder="e.g. #1 Map Pack placement" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Directory / Listing Accuracy Score</label>
+                        <input type="text" id="prep-listing-accuracy" value="81.2%" placeholder="e.g. 81.2% (vs 45% category avg)" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div class="p-3 bg-brand-light border border-gray-200 rounded-xl text-xs text-gray-600 leading-relaxed">
+                        <i class="fa-solid fa-lightbulb text-brand-gold mr-1"></i>
+                        <strong>Core Rule:</strong> Never start with apologies or fake praise. Highlight real foundational wins to lower defensiveness before revealing gaps.
+                    </div>
+                </div>
+
+                <!-- Card 3: Gap 1 - Reputation -->
+                <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <h3 class="font-bold text-xs text-orange-600 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-star"></i> Gap 1: Reputation & Social Proof
+                        </h3>
+                        <span class="text-[10px] bg-orange-50 text-orange-600 px-2 py-0.5 rounded border border-orange-200">Conversion Gap</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Client Reviews</label>
+                            <input type="text" id="prep-client-reviews" value="45" placeholder="e.g. 45" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Client Rating</label>
+                            <input type="text" id="prep-client-rating" value="4.7" placeholder="e.g. 4.7" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Leader Reviews</label>
+                            <input type="text" id="prep-leader-reviews" value="320" placeholder="e.g. 320" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">New Rev / Month</label>
+                            <input type="text" id="prep-review-pace" value="1.2" placeholder="e.g. 1.2 per month" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Reputation Business Impact Statement</label>
+                        <input type="text" id="prep-rep-impact" value="Car owners looking for specialized service need to see recent proof that other enthusiasts trust you with their vehicles" placeholder="e.g. Buyers want fresh proof" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+                </div>
+
+                <!-- Card 4: Gap 2 - Organic Search -->
+                <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <h3 class="font-bold text-xs text-purple-600 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-magnifying-glass"></i> Gap 2: Search Visibility
+                        </h3>
+                        <span class="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded border border-purple-200">Traffic Gap</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Client Keywords</label>
+                            <input type="text" id="prep-client-keywords" value="185" placeholder="e.g. 185" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Est. Monthly Traffic</label>
+                            <input type="text" id="prep-client-traffic" value="22" placeholder="e.g. 22 visits" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Comparison Site Traffic</label>
+                        <input type="text" id="prep-competitor-traffic" value="315" placeholder="e.g. 315 visits / mo" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Core Uncaptured Search Terms</label>
+                        <input type="text" id="prep-target-search" value="BMW transmission repair, Audi timing chain replacement, Euro performance tuning" placeholder="e.g. commercial AC replacement" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+                </div>
+
+                <!-- Card 5: Gap 3 - Demand Capture (Ads) -->
+                <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <h3 class="font-bold text-xs text-red-600 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-bullseye"></i> Gap 3: Demand Capture & Speed
+                        </h3>
+                        <span class="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-200">Intent Lead Ads</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Active Paid Ads Status</label>
+                        <select id="prep-ads-active" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                            <option value="No active search ads detected">No active search ads detected</option>
+                            <option value="Inconsistent / low budget ads running">Inconsistent / low budget ads running</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Est. Google Ads Opportunity</label>
+                        <input type="text" id="prep-ads-opportunity" value="75 high-intent monthly clicks & 1,200+ targeted impressions" placeholder="e.g. 75 clicks / month" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">FB Post Cadence</label>
+                            <input type="text" id="prep-social-cadence" value="0.5 posts/mo" placeholder="e.g. 0.5 posts/mo" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Mobile LCP Load</label>
+                            <input type="text" id="prep-web-speed" value="5.2 seconds LCP" placeholder="e.g. 5.2s LCP" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 6: Revenue Bridge & Offer -->
+                <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <h3 class="font-bold text-xs text-brand-black uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-handshake"></i> Revenue Bridge & Next Step
+                        </h3>
+                        <span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">Close Meeting</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Value of 1 Customer / Contract ($)</label>
+                        <input type="text" id="prep-deal-value" value="$1,500 – $4,000+" placeholder="e.g. $1,500" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Preferred Call To Action (CTA)</label>
+                        <select id="prep-cta-type" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                            <option value="store_link">Sign-up link inside report to store options</option>
+                            <option value="strategy_call">15-minute 1-on-1 Strategy Call</option>
+                        </select>
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="w-full bg-brand-gold hover:bg-[#8c704f] text-white font-bold py-3 rounded-xl shadow-lg shadow-brand-gold/20 transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-circle-play text-base"></i> Launch Teleprompter Studio
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: RECORDING STUDIO TELEPROMPTER       -->
+        <!-- ========================================== -->
+        <section id="tab-studio" class="hidden flex-1 flex flex-col space-y-4">
+
+            <!-- Teleprompter Control Toolbar -->
+            <div class="bg-white border border-gray-200 rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+
+                <!-- Navigation Stepper Header -->
+                <div class="flex items-center space-x-2">
+                    <button onclick="prevStep()" class="p-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-500 hover:text-brand-black transition" title="Previous Section (Left Arrow)">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <div>
+                        <span class="text-[10px] font-semibold text-brand-gold uppercase tracking-wider block" id="current-step-badge">Section 1 of 6</span>
+                        <h3 class="text-xs sm:text-sm font-bold text-brand-black flex items-center gap-2" id="current-step-title">1. Opening & Agenda</h3>
+                    </div>
+                    <button onclick="nextStep()" class="p-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-500 hover:text-brand-black transition" title="Next Section (Right Arrow)">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <!-- Section Pace / Target Time Badge -->
+                <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
+                    <i class="fa-solid fa-stopwatch text-brand-blue text-xs"></i>
+                    <span class="text-xs text-gray-500">Target Time:</span>
+                    <span id="target-time-display" class="text-xs font-mono font-bold text-brand-black">30–45 sec</span>
+                </div>
+
+                <!-- Prompter Display Controls -->
+                <div class="flex items-center flex-wrap gap-2">
+                    
+                    <!-- Font Size Adjustment -->
+                    <div class="flex items-center space-x-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                        <button onclick="adjustFontSize(-2)" class="px-2 py-1 text-xs text-gray-500 hover:text-brand-black transition" title="Decrease Font Size">A-</button>
+                        <span id="font-size-label" class="text-xs font-mono px-1 text-gray-700">22px</span>
+                        <button onclick="adjustFontSize(2)" class="px-2 py-1 text-xs text-gray-500 hover:text-brand-black transition" title="Increase Font Size">A+</button>
+                    </div>
+
+                    <!-- View Mode (Full Script vs Bullet Cues) -->
+                    <div class="flex items-center bg-gray-50 p-1 rounded-xl border border-gray-200">
+                        <button id="view-mode-script" onclick="setViewMode('script')" class="px-3 py-1 text-xs font-semibold rounded-lg bg-brand-black text-white transition">Script</button>
+                        <button id="view-mode-bullets" onclick="setViewMode('bullets')" class="px-3 py-1 text-xs font-semibold rounded-lg text-gray-500 hover:text-brand-black transition">Bullets</button>
+                    </div>
+
+                    <!-- Mirror Text Toggle for Hardware Prompters -->
+                    <button id="btn-mirror" onclick="toggleMirrorMode()" class="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 hover:text-brand-black rounded-xl text-xs font-semibold transition" title="Flip text horizontally for teleprompter glass">
+                        <i class="fa-solid fa-arrow-right-arrow-left mr-1"></i> Mirror
+                    </button>
+
+                    <!-- Auto-scroll Button & Speed Control -->
+                    <div class="flex items-center space-x-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                        <button id="btn-autoscroll" onclick="toggleAutoScroll()" class="px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                            <i id="autoscroll-icon" class="fa-solid fa-play text-brand-gold text-[10px]"></i> Auto-Scroll
+                        </button>
+                        <input type="range" id="scroll-speed" min="1" max="10" value="4" onchange="updateScrollSpeed(this.value)" class="w-16 accent-brand-gold cursor-pointer" title="Auto-scroll Speed">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Studio Teleprompter Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 min-h-[520px]">
+
+                <!-- Left Sidebar: Step Navigation Timeline -->
+                <div class="lg:col-span-1 bg-white border border-gray-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                    <div>
+                        <div class="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Review Flow Steps</h4>
+                            <span class="text-[10px] text-gray-400">7–10 Min Target</span>
+                        </div>
+                        <div class="space-y-2" id="step-timeline-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Rule Reminder Card -->
+                    <div class="mt-4 p-3 bg-brand-light border border-brand-gold/20 rounded-xl space-y-1.5">
+                        <span class="text-xs font-bold text-brand-gold flex items-center gap-1.5">
+                            <i class="fa-solid fa-camera"></i> Camera Eye-Line Rule
+                        </span>
+                        <p class="text-[11px] text-gray-600 leading-relaxed">
+                            Position this window right beneath your webcam lens. Speak to outcomes rather than technical terms!
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Main Teleprompter Screen Container -->
+                <div class="lg:col-span-3 bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 flex flex-col relative overflow-hidden shadow-md prompter-container">
+
+                    <!-- Visual Eye Focus Line Guide Overlay -->
+                    <div class="prompter-focus-line"></div>
+                    
+                    <div class="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-white to-transparent pointer-events-none z-10"></div>
+                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none z-10"></div>
+
+                    <!-- Dynamic Prompter Content Box -->
+                    <div id="prompter-box" class="flex-1 overflow-y-auto pr-4 space-y-6 scroll-smooth text-brand-black" style="font-size: 22px; line-height: 1.8;">
+                        <!-- Content rendered dynamically via JS -->
+                    </div>
+
+                    <!-- Bottom Action Controls Bar -->
+                    <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 z-20">
+                        <div class="text-[11px] text-gray-500 font-mono flex items-center gap-2">
+                            <span><kbd class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200">Space</kbd> Timer</span>
+                            <span>•</span>
+                            <span><kbd class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200">←</kbd> <kbd class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200">→</kbd> Steps</span>
+                        </div>
+
+                        <div class="flex items-center space-x-2">
+                            <button onclick="copyFullScript()" class="px-3.5 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                                <i class="fa-solid fa-copy text-xs"></i> Copy Full Script
+                            </button>
+                            <button onclick="prevStep()" class="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition shadow-sm">
+                                Back
+                            </button>
+                            <button onclick="nextStep()" class="px-5 py-2 bg-brand-gold hover:bg-[#8c704f] text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5">
+                                Next Step <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: CHEAT SHEET & GUARDRAILS            -->
+        <!-- ========================================== -->
+        <section id="tab-guardrails" class="hidden space-y-6">
+
+            <!-- Section Banner -->
+            <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-brand-black flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-brand-gold"></i> Video Presentation Guardrails & Vocabulary Matrix
+                        </h2>
+                        <p class="text-xs text-gray-500 mt-1">Eliminate apologetic, overly technical, or pushy language. Replace with authoritative consultative framing.</p>
+                    </div>
+                    
+                    <!-- Search Input for Cheat Sheet -->
+                    <div class="relative w-full sm:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-gray-400"></i>
+                        <input type="text" id="guardrail-search" onkeyup="filterGuardrailsTable()" placeholder="Search phrases..." class="w-full bg-white border border-gray-300 rounded-xl pl-8 pr-3 py-1.5 text-xs text-brand-black focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vocabulary Table -->
+            <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs" id="guardrails-table">
+                        <thead class="bg-gray-50 border-b border-gray-200 uppercase tracking-wider text-gray-600 font-bold">
+                            <tr>
+                                <th class="py-3 px-6 w-1/3">Weak / Avoid Saying</th>
+                                <th class="py-3 px-6 w-1/3">Strong Consultative Replacement</th>
+                                <th class="py-3 px-6 w-1/3">Strategic Impact</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 text-gray-700">
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="py-3.5 px-6 text-red-600 font-medium">"This is a report..." / "Sorry to bother you..."</td>
+                                <td class="py-3.5 px-6 text-green-700 font-semibold">"I reviewed your online presence and found three key revenue gaps..."</td>
+                                <td class="py-3.5 px-6 text-gray-500">Establishes instant authority without sounding like a cold vendor pitch.</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="py-3.5 px-6 text-red-600 font-medium">"You don't know what you don't know"</td>
+                                <td class="py-3.5 px-6 text-green-700 font-semibold">"This is a very common gap for established local leaders..."</td>
+                                <td class="py-3.5 px-6 text-gray-500">Lowers defensiveness and keeps the owner from feeling patronized.</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="py-3.5 px-6 text-red-600 font-medium">"You guys are doing great"</td>
+                                <td class="py-3.5 px-6 text-green-700 font-semibold">"You have a strong baseline foundation in [specific area]"</td>
+                                <td class="py-3.5 px-6 text-gray-500">Grounds praise in objective evidence rather than empty flattery.</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="py-3.5 px-6 text-red-600 font-medium">"AI is important because it's new and trendy"</td>
+                                <td class="py-3.5 px-6 text-green-700 font-semibold">"AI search is another key channel where high-value buyers discover providers"</td>
+                                <td class="py-3.5 px-6 text-gray-500">Focuses on commercial discovery rather than tech hype.</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="py-3.5 px-6 text-red-600 font-medium">"There's a lot of money on the table"</td>
+                                <td class="py-3.5 px-6 text-green-700 font-semibold">"This is an opportunity to capture high-intent commercial calls"</td>
+                                <td class="py-3.5 px-6 text-gray-500">Sounds professional and outcome-focused.</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="py-3.5 px-6 text-red-600 font-medium">"You should probably do X..."</td>
+                                <td class="py-3.5 px-6 text-green-700 font-semibold">"My strategic recommendation is to prioritize..."</td>
+                                <td class="py-3.5 px-6 text-gray-500">Positions you as a trusted advisor leading the strategy.</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="py-3.5 px-6 text-red-600 font-medium">"You can do this yourself if you want..." (Apologetic)</td>
+                                <td class="py-3.5 px-6 text-green-700 font-semibold">"You can implement this internally, or my team can execute it for you."</td>
+                                <td class="py-3.5 px-6 text-gray-500">Respectfully presents choice while maintaining service value.</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="py-3.5 px-6 text-red-600 font-medium">"Ball's in your court" / "Let me know"</td>
+                                <td class="py-3.5 px-6 text-green-700 font-semibold">"Use the sign-up link in the report to select your service, or let's map out a call."</td>
+                                <td class="py-3.5 px-6 text-gray-500">Provides a friction-free, unambiguous next action.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Closing Options Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-brand-light border border-gray-200 rounded-2xl p-5 shadow-sm">
+                    <span class="text-xs font-bold text-brand-blue uppercase tracking-wider block mb-2">Option 1: Direct Store Link Close</span>
+                    <p class="text-xs text-gray-700 leading-relaxed italic">
+                        "Now, you can take this report as a guide. But if you'd like us to handle this for you, simply click the sign-up link inside the report, select your tier, and we'll start immediately."
+                    </p>
+                </div>
+
+                <div class="bg-brand-light border border-gray-200 rounded-2xl p-5 shadow-sm">
+                    <span class="text-xs font-bold text-brand-gold uppercase tracking-wider block mb-2">Option 2: Consultative Call Close</span>
+                    <p class="text-xs text-gray-700 leading-relaxed italic">
+                        "If your goal is turning these gaps into consistent revenue, let me map this out for you. Let's set up a brief 15-minute call to review priorities, timeline, and ROI."
+                    </p>
+                </div>
+
+                <div class="bg-brand-light border border-gray-200 rounded-2xl p-5 shadow-sm">
+                    <span class="text-xs font-bold text-brand-black uppercase tracking-wider block mb-2">Option 3: Ultra Short (One-Liner)</span>
+                    <p class="text-xs text-gray-700 leading-relaxed italic">
+                        "If you want us to fix these gaps for you, just click the sign-up link in the report, pick your preferred service, and we'll take it from there."
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Custom Toast Container -->
+    <div id="toast-container"></div>
+
+    <script>
+        let activeTab = 'prep';
+        let currentStepIndex = 0;
+        let fontSize = 22;
+        let viewMode = 'script'; // 'script' or 'bullets'
+        let mirrorMode = false;
+        let autoScrollActive = false;
+        let autoScrollInterval = null;
+        let autoScrollSpeed = 4;
+
+        // Recording Timer state
+        let timerSeconds = 0;
+        let timerRunning = false;
+        let timerInterval = null;
+
+        // Default Client Profile Model
+        let clientData = {
+            clientName: "Mike",
+            companyName: "EuroTech Auto Works",
+            industry: "specialty European auto repair",
+            location: "Miami Metro Area",
+            goal: "high-ticket repair jobs and scheduled maintenance",
+            win1: "Appears in 82 AI search responses for specialty auto queries",
+            win2: "Ranks in the top 3 for 'Porsche repair near me'",
+            listingAccuracy: "81.2%",
+            clientReviews: "45",
+            clientRating: "4.7",
+            leaderReviews: "320",
+            reviewPace: "1.2",
+            repImpact: "Car owners looking for specialized service need to see recent proof that other enthusiasts trust you with their vehicles",
+            clientKeywords: "185",
+            clientTraffic: "22",
+            competitorTraffic: "315",
+            targetSearch: "BMW transmission repair, Audi timing chain replacement, Euro performance tuning",
+            adsStatus: "No active search ads detected",
+            adsOpportunity: "75 high-intent monthly clicks & 1,200+ targeted impressions",
+            socialCadence: "0.5 posts/mo",
+            webSpeed: "5.2 seconds LCP",
+            dealValue: "$1,500 – $4,000+",
+            ctaType: "store_link"
+        };
+
+        const steps = [
+            {
+                id: 'opening',
+                title: '1. Opening & Agenda',
+                timeTarget: '30–45 sec',
+                badgeColor: 'bg-brand-blue',
+                getScript: (d) => `
+                    <div class="space-y-4">
+                        <span class="cue-badge bg-brand-blue text-white"><i class="fa-solid fa-bullhorn mr-1.5"></i> Opening Frame</span>
+                        <div class="p-4 bg-gray-50 border-l-4 border-brand-blue rounded-r-xl">
+                            "Hey <span class="highlight-var">${d.clientName}</span>, I reviewed the online presence for <span class="highlight-var">${d.companyName}</span>. The good news is that you already have a solid foundation in place. What I found, though, are <strong>three specific gaps</strong> that are likely limiting how many <span class="highlight-var">${d.goal}</span> you capture online."
+                        </div>
+
+                        <span class="cue-badge bg-gray-200 text-gray-700"><i class="fa-solid fa-list-check mr-1.5"></i> Set 3-Part Agenda</span>
+                        <div class="p-4 bg-gray-50 border-l-4 border-gray-300 rounded-r-xl">
+                            "I’m going to keep this short and directly tied to your business outcomes. Today, we'll look at three things:<br><br>
+                            <strong>1.</strong> How easily high-value clients find you online.<br>
+                            <strong>2.</strong> The trust they see when they land on your profile.<br>
+                            <strong>3.</strong> What is currently stopping that traffic from becoming revenue for <span class="highlight-var">${d.companyName}</span>."
+                        </div>
+                    </div>
+                `,
+                getBullets: (d) => `
+                    <ul class="space-y-3 list-disc list-inside text-gray-800">
+                        <li><strong>Greet & Frame:</strong> Address <span class="highlight-var">${d.clientName}</span> directly without apologies.</li>
+                        <li><strong>Core Premise:</strong> Good base exists, but 3 revenue gaps limit <span class="highlight-var">${d.goal}</span>.</li>
+                        <li><strong>Agenda:</strong> 1. Visibility → 2. Trust → 3. Lead Conversion.</li>
+                    </ul>
+                `
+            },
+            {
+                id: 'goodnews',
+                title: '2. Lead With Good News',
+                timeTarget: '60–90 sec',
+                badgeColor: 'bg-brand-gold',
+                getScript: (d) => `
+                    <div class="space-y-4">
+                        <span class="cue-badge bg-brand-gold text-white"><i class="fa-solid fa-thumbs-up mr-1.5"></i> Validate Baseline</span>
+                        <div class="p-4 bg-gray-50 border-l-4 border-brand-gold rounded-r-xl">
+                            "First, you deserve credit here: you are not starting from zero. <span class="highlight-var">${d.win1}</span>. That tells us search platforms and AI models already recognize your expertise in <span class="highlight-var">${d.industry}</span>."
+                        </div>
+
+                        <div class="p-4 bg-gray-50 border-l-4 border-brand-gold rounded-r-xl">
+                            "In addition, <span class="highlight-var">${d.win2}</span>, and your core listing accuracy stands at <span class="highlight-var">${d.listingAccuracy}</span>. So the challenge is not rebuilding your reputation from scratch—it's turning an existing foundation into consistent demand."
+                        </div>
+
+                        <span class="cue-badge bg-gray-200 text-gray-700"><i class="fa-solid fa-right-long mr-1.5"></i> Transition Phrase</span>
+                        <div class="italic text-gray-600 pl-4 border-l-2 border-gray-300">
+                            "That’s important because our next steps aren't speculative. We are optimizing assets that are already generating signals of trust."
+                        </div>
+                    </div>
+                `,
+                getBullets: (d) => `
+                    <ul class="space-y-3 list-disc list-inside text-gray-800">
+                        <li><strong>Acknowledge Win #1:</strong> <span class="highlight-var">${d.win1}</span>.</li>
+                        <li><strong>Acknowledge Win #2:</strong> <span class="highlight-var">${d.win2}</span>.</li>
+                        <li><strong>Accuracy:</strong> Directory score is at <span class="highlight-var">${d.listingAccuracy}</span>.</li>
+                        <li><strong>Insight:</strong> Don't rebuild—optimize existing trust signals into demand.</li>
+                    </ul>
+                `
+            },
+            {
+                id: 'gap1',
+                title: '3. Gap 1: Reputation Volume',
+                timeTarget: '90 sec',
+                badgeColor: 'bg-orange-500',
+                getScript: (d) => `
+                    <div class="space-y-4">
+                        <span class="cue-badge bg-orange-600 text-white"><i class="fa-solid fa-star mr-1.5"></i> Social Proof Gap</span>
+                        <div class="p-4 bg-gray-50 border-l-4 border-orange-500 rounded-r-xl">
+                            "The first gap is review velocity. You have a solid average rating of <span class="highlight-var">${d.clientRating} stars</span>, so your service quality is clear. The issue is total volume and recency."
+                        </div>
+
+                        <div class="p-4 bg-gray-50 border-l-4 border-orange-500 rounded-r-xl">
+                            "Right now, <span class="highlight-var">${d.companyName}</span> has <span class="highlight-var">${d.clientReviews} reviews</span>, while market leaders in your space have <span class="highlight-var">${d.leaderReviews}+ reviews</span>. <span class="highlight-var">${d.repImpact}</span>."
+                        </div>
+
+                        <span class="cue-badge bg-brand-blue text-white"><i class="fa-solid fa-sack-dollar mr-1.5"></i> Revenue Bridge Question</span>
+                        <div class="p-4 bg-gray-50 border-l-4 border-brand-blue rounded-r-xl font-medium">
+                            "When a client engages your services, what is one customer or agreement typically worth to you? In your line of business, that's easily <span class="highlight-var">${d.dealValue}</span>. If a systematic review engine brings in even 2 or 3 additional calls a month, it pays for itself immediately."
+                        </div>
+                    </div>
+                `,
+                getBullets: (d) => `
+                    <ul class="space-y-3 list-disc list-inside text-gray-800">
+                        <li><strong>Quality vs Volume:</strong> Rating is good (<span class="highlight-var">${d.clientRating}★</span>), but volume is low (<span class="highlight-var">${d.clientReviews}</span> vs <span class="highlight-var">${d.leaderReviews}</span>).</li>
+                        <li><strong>Recency Impact:</strong> <span class="highlight-var">${d.repImpact}</span>.</li>
+                        <li><strong>ROI Bridge:</strong> Value of 1 client is <span class="highlight-var">${d.dealValue}</span>. Automated reviews pay for themselves.</li>
+                    </ul>
+                `
+            },
+            {
+                id: 'gap2',
+                title: '4. Gap 2: Search Visibility',
+                timeTarget: '90 sec',
+                badgeColor: 'bg-purple-500',
+                getScript: (d) => `
+                    <div class="space-y-4">
+                        <span class="cue-badge bg-purple-600 text-white"><i class="fa-solid fa-magnifying-glass mr-1.5"></i> Search Coverage Gap</span>
+                        <div class="p-4 bg-gray-50 border-l-4 border-purple-500 rounded-r-xl">
+                            "The second gap is that your organic search coverage is not pulling in enough active demand. The report shows you rank for <span class="highlight-var">${d.clientKeywords} keywords</span>, but your estimated organic search traffic is only about <span class="highlight-var">${d.clientTraffic} visits per month</span>, compared with <span class="highlight-var">${d.competitorTraffic} visits</span> for direct competitors."
+                        </div>
+
+                        <div class="p-4 bg-gray-50 border-l-4 border-purple-500 rounded-r-xl">
+                            "In simple terms: when someone in <span class="highlight-var">${d.location}</span> searches for <span class="highlight-var">${d.targetSearch}</span>, we want <span class="highlight-var">${d.companyName}</span> to consistently earn that click before a competitor gets the call."
+                        </div>
+                    </div>
+                `,
+                getBullets: (d) => `
+                    <ul class="space-y-3 list-disc list-inside text-gray-800">
+                        <li><strong>Traffic Contrast:</strong> <span class="highlight-var">${d.clientKeywords} keywords</span> yielding only <span class="highlight-var">${d.clientTraffic} visits/mo</span> (vs <span class="highlight-var">${d.competitorTraffic}</span>).</li>
+                        <li><strong>Commercial Intent:</strong> Missing out on high-intent searches for <span class="highlight-var">${d.targetSearch}</span> in <span class="highlight-var">${d.location}</span>.</li>
+                        <li><strong>Action:</strong> Strengthen service-specific page authority and local SEO.</li>
+                    </ul>
+                `
+            },
+            {
+                id: 'gap3',
+                title: '5. Demand Capture & Speed',
+                timeTarget: '60–90 sec',
+                badgeColor: 'bg-red-500',
+                getScript: (d) => `
+                    <div class="space-y-4">
+                        <span class="cue-badge bg-red-600 text-white"><i class="fa-solid fa-bullseye mr-1.5"></i> High-Intent Ads</span>
+                        <div class="p-4 bg-gray-50 border-l-4 border-red-500 rounded-r-xl">
+                            "The third opportunity is demand capture. <span class="highlight-var">${d.adsStatus}</span>. That means you are relying purely on referrals or passive discovery. Search ads allow you to turn on predictable visibility overnight for high-intent queries."
+                        </div>
+
+                        <div class="p-4 bg-gray-50 border-l-4 border-red-500 rounded-r-xl">
+                            "Under current search data, targeted search campaign setup could capture approximately <span class="highlight-var">${d.adsOpportunity}</span>. We aren't spending money for vanity clicks—we are capturing people with active needs right now."
+                        </div>
+
+                        <span class="cue-badge bg-gray-200 text-gray-700"><i class="fa-solid fa-circle-info mr-1.5"></i> Touchpoint Support</span>
+                        <div class="p-3 bg-white text-xs text-gray-700 border border-gray-200 rounded-xl">
+                            • <strong>Social Proof:</strong> Facebook cadence is at <span class="highlight-var">${d.socialCadence}</span>—we'll setup a simple proof-posting system.<br>
+                            • <strong>Mobile Experience:</strong> Mobile LCP load is <span class="highlight-var">${d.webSpeed}</span>—we'll optimize response speed so prospects don't bounce.
+                        </div>
+                    </div>
+                `,
+                getBullets: (d) => `
+                    <ul class="space-y-3 list-disc list-inside text-gray-800">
+                        <li><strong>Ads Status:</strong> <span class="highlight-var">${d.adsStatus}</span>. Missing out on controlled lead flow.</li>
+                        <li><strong>Opportunity:</strong> Google Ads can yield <span class="highlight-var">${d.adsOpportunity}</span>.</li>
+                        <li><strong>Secondary Factors:</strong> Social cadence (<span class="highlight-var">${d.socialCadence}</span>) and mobile speed (<span class="highlight-var">${d.webSpeed}</span>).</li>
+                    </ul>
+                `
+            },
+            {
+                id: 'recommendation',
+                title: '6. 3-Pillar Plan & CTA',
+                timeTarget: '60 sec',
+                badgeColor: 'bg-brand-black',
+                getScript: (d) => {
+                    const ctaText = d.ctaType === 'store_link' ? 
+                        `"If you want us to fix these gaps for you, simply click the <strong>sign-up link inside this report</strong>. It takes you straight to our store where you can select the package that fits <span class="highlight-var">${d.companyName}</span> and we'll start implementation right away."` :
+                        `"If you want to turn these gaps into measurable revenue growth, let's schedule a short 15-minute strategy call. I'll walk you through the exact scope, timeline, and investment. You can book that call using the link in the report."`;
+
+                    return `
+                        <div class="space-y-4">
+                            <span class="cue-badge bg-brand-black text-white"><i class="fa-solid fa-cubes mr-1.5"></i> 3-Pillar Recommendation</span>
+                            <div class="p-4 bg-gray-50 border-l-4 border-brand-black rounded-r-xl">
+                                "I would not recommend trying to fix everything at once. I would prioritize three core pillars:<br><br>
+                                <strong>1. Build an automated review engine</strong> to reflect your true quality.<br>
+                                <strong>2. Strengthen local search coverage</strong> for <span class="highlight-var">${d.industry}</span> in <span class="highlight-var">${d.location}</span>.<br>
+                                <strong>3. Launch intent-based search ads</strong> to capture immediate service demand."
+                            </div>
+
+                            <span class="cue-badge bg-green-600 text-white"><i class="fa-solid fa-circle-check mr-1.5"></i> Actionable Close</span>
+                            <div class="p-4 bg-gray-50 border-l-4 border-green-500 rounded-r-xl font-medium">
+                                "You can certainly take this report and work through these items on your own. ${ctaText}"
+                            </div>
+                        </div>
+                    `;
+                },
+                getBullets: (d) => `
+                    <ul class="space-y-3 list-disc list-inside text-gray-800">
+                        <li><strong>Pillar 1:</strong> Automated review & reputation request engine.</li>
+                        <li><strong>Pillar 2:</strong> Service-page organic search and local pack expansion.</li>
+                        <li><strong>Pillar 3:</strong> High-intent search ad demand capture.</li>
+                        <li><strong>Call To Action:</strong> Use report sign-up / booking link to take action.</li>
+                    </ul>
+                `
+            }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            syncPrepFormFromModel();
+            renderStepTimeline();
+            renderPrompter();
+            loadSavedProfilesList();
+
+            // Keyboard Shortcuts
+            window.addEventListener('keydown', (e) => {
+                if (activeTab === 'studio') {
+                    if (e.code === 'Space' && e.target === document.body) {
+                        e.preventDefault();
+                        toggleTimer();
+                    } else if (e.code === 'ArrowRight') {
+                        nextStep();
+                    } else if (e.code === 'ArrowLeft') {
+                        prevStep();
+                    }
+                }
+            });
+
+            // Report Upload JSON Handler
+            document.getElementById('report-upload').addEventListener('change', handleFileUpload);
+        });
+
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+
+            if (fileExtension === 'json') {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    try {
+                        const parsedData = JSON.parse(evt.target.result);
+                        
+                        Object.keys(clientData).forEach(key => {
+                            if (parsedData[key] !== undefined) {
+                                clientData[key] = parsedData[key];
+                            }
+                        });
+                        
+                        syncPrepFormFromModel();
+                        showToast("JSON report data applied successfully!");
+                        e.target.value = '';
+                    } catch (err) {
+                        showToast("Error reading JSON file.");
+                        console.error("Upload Error:", err);
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                showToast("Unsupported file type. Please upload JSON.");
+                e.target.value = '';
+            }
+        }
+
+        function switchTab(tab) {
+            activeTab = tab;
+            
+            document.getElementById('tab-prep').classList.add('hidden');
+            document.getElementById('tab-studio').classList.add('hidden');
+            document.getElementById('tab-guardrails').classList.add('hidden');
+
+            ['prep', 'studio', 'guardrails'].forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg transition text-gray-600 hover:text-brand-black hover:bg-gray-200";
+            });
+
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-btn-${tab}`);
+            activeBtn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg transition text-white bg-brand-gold shadow-sm";
+
+            if (tab === 'studio') {
+                syncModelFromPrepForm();
+                renderPrompter();
+            }
+        }
+
+        function syncModelFromPrepForm() {
+            clientData.clientName = document.getElementById('prep-client-name').value || "Client";
+            clientData.companyName = document.getElementById('prep-company-name').value || "Company";
+            clientData.industry = document.getElementById('prep-industry').value || "services";
+            clientData.location = document.getElementById('prep-location').value || "your market";
+            clientData.goal = document.getElementById('prep-business-goal').value || "qualified leads";
+            clientData.win1 = document.getElementById('prep-win-1').value || "Strong foundation";
+            clientData.win2 = document.getElementById('prep-win-2').value || "Good local presence";
+            clientData.listingAccuracy = document.getElementById('prep-listing-accuracy').value || "75%";
+            clientData.clientReviews = document.getElementById('prep-client-reviews').value || "20";
+            clientData.clientRating = document.getElementById('prep-client-rating').value || "4.5";
+            clientData.leaderReviews = document.getElementById('prep-leader-reviews').value || "150";
+            clientData.reviewPace = document.getElementById('prep-review-pace').value || "0.0";
+            clientData.repImpact = document.getElementById('prep-rep-impact').value || "Buyers look for recent proof";
+            clientData.clientKeywords = document.getElementById('prep-client-keywords').value || "100";
+            clientData.clientTraffic = document.getElementById('prep-client-traffic').value || "5";
+            clientData.competitorTraffic = document.getElementById('prep-competitor-traffic').value || "50";
+            clientData.targetSearch = document.getElementById('prep-target-search').value || "service terms";
+            clientData.adsStatus = document.getElementById('prep-ads-active').value;
+            clientData.adsOpportunity = document.getElementById('prep-ads-opportunity').value || "40 clicks/mo";
+            clientData.socialCadence = document.getElementById('prep-social-cadence').value || "0.2 posts/mo";
+            clientData.webSpeed = document.getElementById('prep-web-speed').value || "6.0s";
+            clientData.dealValue = document.getElementById('prep-deal-value').value || "$3,000";
+            clientData.ctaType = document.getElementById('prep-cta-type').value;
+        }
+
+        function syncPrepFormFromModel() {
+            document.getElementById('prep-client-name').value = clientData.clientName;
+            document.getElementById('prep-company-name').value = clientData.companyName;
+            document.getElementById('prep-industry').value = clientData.industry;
+            document.getElementById('prep-location').value = clientData.location;
+            document.getElementById('prep-business-goal').value = clientData.goal;
+            document.getElementById('prep-win-1').value = clientData.win1;
+            document.getElementById('prep-win-2').value = clientData.win2;
+            document.getElementById('prep-listing-accuracy').value = clientData.listingAccuracy;
+            document.getElementById('prep-client-reviews').value = clientData.clientReviews;
+            document.getElementById('prep-client-rating').value = clientData.clientRating;
+            document.getElementById('prep-leader-reviews').value = clientData.leaderReviews;
+            document.getElementById('prep-review-pace').value = clientData.reviewPace;
+            document.getElementById('prep-rep-impact').value = clientData.repImpact;
+            document.getElementById('prep-client-keywords').value = clientData.clientKeywords;
+            document.getElementById('prep-client-traffic').value = clientData.clientTraffic;
+            document.getElementById('prep-competitor-traffic').value = clientData.competitorTraffic;
+            document.getElementById('prep-target-search').value = clientData.targetSearch;
+            document.getElementById('prep-ads-active').value = clientData.adsStatus;
+            document.getElementById('prep-ads-opportunity').value = clientData.adsOpportunity;
+            document.getElementById('prep-social-cadence').value = clientData.socialCadence;
+            document.getElementById('prep-web-speed').value = clientData.webSpeed;
+            document.getElementById('prep-deal-value').value = clientData.dealValue;
+            document.getElementById('prep-cta-type').value = clientData.ctaType;
+        }
+
+        function loadPresetData(type) {
+            if (type === 'auto') {
+                clientData = {
+                    clientName: "Mike",
+                    companyName: "EuroTech Auto Works",
+                    industry: "specialty European auto repair",
+                    location: "Miami Metro Area",
+                    goal: "high-ticket repair jobs and scheduled maintenance",
+                    win1: "Appears in 82 AI search responses for specialty auto queries",
+                    win2: "Ranks in the top 3 for 'Porsche repair near me'",
+                    listingAccuracy: "81.2%",
+                    clientReviews: "45",
+                    clientRating: "4.7",
+                    leaderReviews: "320",
+                    reviewPace: "1.2",
+                    repImpact: "Car owners looking for specialized service need to see recent proof that other enthusiasts trust you with their vehicles",
+                    clientKeywords: "185",
+                    clientTraffic: "22",
+                    competitorTraffic: "315",
+                    targetSearch: "BMW transmission repair, Audi timing chain replacement, Euro performance tuning",
+                    adsStatus: "No active search ads detected",
+                    adsOpportunity: "75 high-intent monthly clicks & 1,200+ targeted impressions",
+                    socialCadence: "0.5 posts/mo",
+                    webSpeed: "5.2 seconds LCP",
+                    dealValue: "$1,500 – $4,000+",
+                    ctaType: "store_link"
+                };
+            } else if (type === 'mortgage') {
+                clientData = {
+                    clientName: "Sarah",
+                    companyName: "Apex Home Loans",
+                    industry: "residential mortgage broker",
+                    location: "Denver, CO",
+                    goal: "new home purchases and high-value refinances",
+                    win1: "Maintains a stellar 4.9-star rating across financial directories",
+                    win2: "Directory listing accuracy is at 88% across core maps",
+                    listingAccuracy: "88.0%",
+                    clientReviews: "28",
+                    clientRating: "4.9",
+                    leaderReviews: "215",
+                    reviewPace: "0.8",
+                    repImpact: "First-time buyers making massive financial decisions rely entirely on the volume of past success stories",
+                    clientKeywords: "240",
+                    clientTraffic: "35",
+                    competitorTraffic: "210",
+                    targetSearch: "first time home buyer loans, mortgage refinance rates, jumbo loan broker",
+                    adsStatus: "Inconsistent / low budget ads running",
+                    adsOpportunity: "95 high-intent clicks & 1,800 impressions",
+                    socialCadence: "0.2 posts/mo",
+                    webSpeed: "4.8 seconds LCP",
+                    dealValue: "$3,000 – $6,000",
+                    ctaType: "strategy_call"
+                };
+            } else if (type === 'law') {
+                clientData = {
+                    clientName: "David",
+                    companyName: "Justice Partners LLC",
+                    industry: "personal injury & accident law",
+                    location: "Chicago, IL",
+                    goal: "high-value accident settlements and injury claims",
+                    win1: "Strong local map pack presence for injury attorneys downtown",
+                    win2: "High baseline review rating of 4.8 stars",
+                    listingAccuracy: "93.0%",
+                    clientReviews: "64",
+                    clientRating: "4.8",
+                    leaderReviews: "550",
+                    reviewPace: "1.5",
+                    repImpact: "Victims dealing with trauma choose the firm that looks like the undisputed authority with hundreds of recent wins",
+                    clientKeywords: "410",
+                    clientTraffic: "115",
+                    competitorTraffic: "840",
+                    targetSearch: "car accident lawyer near me, personal injury settlement, motorcycle crash attorney",
+                    adsStatus: "No active search ads detected",
+                    adsOpportunity: "140 targeted clicks & 3,500 impressions",
+                    socialCadence: "1.2 posts/mo",
+                    webSpeed: "3.5 seconds LCP",
+                    dealValue: "$5,000 – $50,000+",
+                    ctaType: "strategy_call"
+                };
+            }
+            syncPrepFormFromModel();
+            showToast(`Loaded ${type.toUpperCase()} sample dataset`);
+            if (activeTab === 'studio') renderPrompter();
+        }
+
+        function resetPrepForm() {
+            document.getElementById('prep-form').reset();
+            // Reset report upload input
+            document.getElementById('report-upload').value = '';
+            showToast("Prep form reset");
+        }
+
+        function saveCurrentProfilePrompt() {
+            syncModelFromPrepForm();
+            const profileName = prompt("Enter a name for this client profile (e.g. EuroTech - March):");
+            if (!profileName) return;
+
+            const saved = JSON.parse(localStorage.getItem('snapshot_profiles') || '{}');
+            saved[profileName] = clientData;
+            localStorage.setItem('snapshot_profiles', JSON.stringify(saved));
+            
+            loadSavedProfilesList();
+            showToast(`Profile "${profileName}" saved!`);
+        }
+
+        function loadSavedProfilesList() {
+            const dropdown = document.getElementById('saved-profiles-dropdown');
+            const saved = JSON.parse(localStorage.getItem('snapshot_profiles') || '{}');
+            
+            dropdown.innerHTML = `<option value="">Saved Profiles...</option>`;
+            Object.keys(saved).forEach(name => {
+                dropdown.innerHTML += `<option value="${name}">${name}</option>`;
+            });
+        }
+
+        function loadSavedProfile(name) {
+            if (!name) return;
+            const saved = JSON.parse(localStorage.getItem('snapshot_profiles') || '{}');
+            if (saved[name]) {
+                clientData = saved[name];
+                syncPrepFormFromModel();
+                showToast(`Loaded profile: ${name}`);
+                if (activeTab === 'studio') renderPrompter();
+            }
+        }
+
+        function renderStepTimeline() {
+            const listContainer = document.getElementById('step-timeline-list');
+            listContainer.innerHTML = steps.map((step, idx) => {
+                const isActive = idx === currentStepIndex;
+                const activeClass = isActive ? 
+                    'bg-brand-light border-brand-gold text-brand-black font-bold shadow-sm' : 
+                    'bg-white border-gray-200 text-gray-500 hover:text-brand-black hover:bg-gray-50';
+
+                return `
+                    <button onclick="goToStep(${idx})" class="w-full text-left px-3 py-2.5 rounded-xl border transition flex items-center justify-between text-xs ${activeClass}">
+                        <span class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full ${step.badgeColor}"></span>
+                            ${step.title}
+                        </span>
+                        <span class="text-[10px] font-mono text-gray-400">${step.timeTarget}</span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function renderPrompter() {
+            renderStepTimeline();
+            const currentStep = steps[currentStepIndex];
+
+            document.getElementById('current-step-badge').textContent = `Section ${currentStepIndex + 1} of ${steps.length}`;
+            document.getElementById('current-step-title').textContent = currentStep.title;
+            document.getElementById('target-time-display').textContent = currentStep.timeTarget;
+
+            const box = document.getElementById('prompter-box');
+            box.style.fontSize = `${fontSize}px`;
+
+            if (viewMode === 'script') {
+                box.innerHTML = currentStep.getScript(clientData);
+            } else {
+                box.innerHTML = currentStep.getBullets(clientData);
+            }
+
+            box.scrollTop = 0;
+        }
+
+        function goToStep(idx) {
+            currentStepIndex = idx;
+            renderPrompter();
+        }
+
+        function nextStep() {
+            if (currentStepIndex < steps.length - 1) {
+                currentStepIndex++;
+                renderPrompter();
+            }
+        }
+
+        function prevStep() {
+            if (currentStepIndex > 0) {
+                currentStepIndex--;
+                renderPrompter();
+            }
+        }
+
+        function adjustFontSize(delta) {
+            fontSize = Math.max(16, Math.min(36, fontSize + delta));
+            document.getElementById('font-size-label').textContent = `${fontSize}px`;
+            document.getElementById('prompter-box').style.fontSize = `${fontSize}px`;
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            const scriptBtn = document.getElementById('view-mode-script');
+            const bulletsBtn = document.getElementById('view-mode-bullets');
+
+            if (mode === 'script') {
+                scriptBtn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-brand-black text-white transition";
+                bulletsBtn.className = "px-3 py-1 text-xs font-semibold rounded-lg text-gray-500 hover:text-brand-black transition";
+            } else {
+                bulletsBtn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-brand-black text-white transition";
+                scriptBtn.className = "px-3 py-1 text-xs font-semibold rounded-lg text-gray-500 hover:text-brand-black transition";
+            }
+            renderPrompter();
+        }
+
+        function toggleMirrorMode() {
+            mirrorMode = !mirrorMode;
+            const box = document.getElementById('prompter-box');
+            const btn = document.getElementById('btn-mirror');
+
+            if (mirrorMode) {
+                box.classList.add('prompter-mirror');
+                btn.className = "px-3 py-1.5 bg-brand-black text-white rounded-xl text-xs font-semibold transition";
+            } else {
+                box.classList.remove('prompter-mirror');
+                btn.className = "px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 hover:text-brand-black rounded-xl text-xs font-semibold transition";
+            }
+        }
+
+        function toggleAutoScroll() {
+            autoScrollActive = !autoScrollActive;
+            const btn = document.getElementById('btn-autoscroll');
+            const icon = document.getElementById('autoscroll-icon');
+            
+            if (autoScrollActive) {
+                btn.className = "px-2.5 py-1 bg-brand-gold text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-md";
+                icon.className = "fa-solid fa-pause text-white text-[10px]";
+                
+                autoScrollInterval = setInterval(() => {
+                    const box = document.getElementById('prompter-box');
+                    box.scrollTop += 1;
+                }, 60 - (autoScrollSpeed * 5));
+            } else {
+                btn.className = "px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5";
+                icon.className = "fa-solid fa-play text-brand-gold text-[10px]";
+                clearInterval(autoScrollInterval);
+            }
+        }
+
+        function updateScrollSpeed(val) {
+            autoScrollSpeed = parseInt(val, 10);
+            if (autoScrollActive) {
+                clearInterval(autoScrollInterval);
+                autoScrollInterval = setInterval(() => {
+                    const box = document.getElementById('prompter-box');
+                    box.scrollTop += 1;
+                }, 60 - (autoScrollSpeed * 5));
+            }
+        }
+
+        function toggleTimer() {
+            timerRunning = !timerRunning;
+            const dot = document.getElementById('recording-dot');
+            const icon = document.getElementById('timer-icon');
+
+            if (timerRunning) {
+                dot.className = "w-3 h-3 rounded-full bg-red-500 animate-pulse";
+                icon.className = "fa-solid fa-pause text-xs text-brand-gold";
+                timerInterval = setInterval(() => {
+                    timerSeconds++;
+                    updateTimerDisplay();
+                }, 1000);
+            } else {
+                dot.className = "w-3 h-3 rounded-full bg-gray-400";
+                icon.className = "fa-solid fa-play text-xs text-gray-500";
+                clearInterval(timerInterval);
+            }
+        }
+
+        function resetTimer() {
+            timerRunning = false;
+            clearInterval(timerInterval);
+            timerSeconds = 0;
+            updateTimerDisplay();
+            document.getElementById('recording-dot').className = "w-3 h-3 rounded-full bg-gray-400";
+            document.getElementById('timer-icon').className = "fa-solid fa-play text-xs text-gray-500";
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(timerSeconds / 60);
+            const secs = timerSeconds % 60;
+            const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            const display = document.getElementById('timer-display');
+            display.textContent = formatted;
+
+            if (mins >= 10) {
+                display.className = "font-mono text-base font-bold text-red-500 animate-pulse";
+            } else if (mins >= 7) {
+                display.className = "font-mono text-base font-bold text-green-600";
+            } else {
+                display.className = "font-mono text-base font-bold text-brand-black";
+            }
+        }
+
+        function filterGuardrailsTable() {
+            const query = document.getElementById('guardrail-search').value.toLowerCase();
+            const rows = document.querySelectorAll('#guardrails-table tbody tr');
+
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        function copyFullScript() {
+            syncModelFromPrepForm();
+            
+            let fullText = `=== SNAPSHOT REPORT SCRIPT FOR ${clientData.companyName.toUpperCase()} ===\n\n`;
+            steps.forEach((s, idx) => {
+                fullText += `--- SECTION ${idx + 1}: ${s.title.toUpperCase()} (${s.timeTarget}) ---\n`;
+                
+                // Strip HTML tags for clean clipboard output
+                const tempDiv = document.createElement("div");
+                tempDiv.innerHTML = s.getScript(clientData);
+                fullText += tempDiv.innerText.trim() + "\n\n";
+            });
+
+            // Executive clipboard fallback
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = fullText;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+
+            showToast("Full script copied to clipboard!");
+        }
+
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = "bg-brand-black border border-brand-gold/50 text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 transition-all duration-300 transform translate-y-2 opacity-0";
+            toast.innerHTML = `<i class="fa-solid fa-circle-check text-brand-gold"></i> ${msg}`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
